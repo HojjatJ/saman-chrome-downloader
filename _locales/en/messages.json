@@ -1,0 +1,11 @@
+{
+  "extName": {
+    "message": "Saman Project File Downloader"
+  },
+  "extDesc": {
+    "message": "Downloads project documents, info and a screenshot from the Saman project page."
+  },
+  "extTitle": {
+    "message": "Download Saman project files"
+  }
+}

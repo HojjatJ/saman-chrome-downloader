@@ -1,0 +1,4 @@
+# built packages are published as GitHub Release assets, not committed
+*.zip
+Thumbs.db
+.DS_Store
