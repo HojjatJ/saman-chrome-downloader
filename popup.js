@@ -13,6 +13,10 @@ const safe = s => (s || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").replace(/
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const run = (func) => chrome.scripting.executeScript({ target: { tabId }, func }).then(r => r[0].result);
 const dl = (url, filename) => chrome.downloads.download({ url, filename, conflictAction: "uniquify", saveAs: false });
+// Chrome's own download bubble / shelf pops up for every file and covers this popup, so hide it
+// while we work and always give it back.
+const downloadUi = on => chrome.downloads.setUiOptions({ enabled: on })
+  .catch(e => console.warn("downloads.setUiOptions failed:", e));
 
 // Download links (zip / dwg / pdf ...) often have no extension in the URL: ask the server for
 // the real file name first so every file can be saved at an explicit folder/name path.
@@ -63,6 +67,9 @@ function notProject() {
     window.owner = r.owner;
     titleEl.textContent = `دانلود اسناد پروژه «${r.owner || "—"}»`;
     introEl.textContent = "فایل‌ها، اطلاعات و تصویر صفحه در پوشه Downloads ذخیره می‌شوند. تا پایان کار popup را نبندید.";
+    // apply this before any download starts, or the first run still shows Chrome's bubble
+    await downloadUi(false);
+    await sleep(500);
     btn.classList.remove("hidden");
   } catch { notProject(); }
 })();
@@ -274,14 +281,12 @@ function showSummary({ owner, groups, jobs, items, failed, dir, showId }) {
   summaryEl.classList.remove("hidden");
 }
 
-// Chrome's own download bubble / shelf pops up for every file and covers this popup, so hide it
-// while we work and always give it back.
-const downloadUi = on => chrome.downloads.setUiOptions({ enabled: on }).catch(() => {});
 addEventListener("pagehide", () => downloadUi(true));
 
 btn.addEventListener("click", async () => {
   btn.disabled = true;
   await downloadUi(false);
+  await sleep(300);
   summaryEl.classList.add("hidden");
   const jobs = [];      // { id, name, kind }
   const failed = [];    // downloads that could not even start
