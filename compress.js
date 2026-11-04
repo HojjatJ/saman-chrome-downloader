@@ -54,6 +54,8 @@
         .bar { height: 4px; margin-top: 8px; border-radius: 2px; background: #e5e7eb; overflow: hidden; }
         .bar i { display: block; height: 100%; width: 0; background: #2563eb; transition: width .3s; margin-inline-start: 0; }
         .done .bar i { background: #16a34a; }
+        .warn .ok { background: #d97706; }
+        .warn .bar i { background: #d97706; }
         .by { margin-top: 6px; color: #9ca3af; font-size: 11px; }
         @keyframes r { to { transform: rotate(360deg); } }
       </style>
@@ -72,27 +74,31 @@
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => { ui.box.classList.remove("show"); setTimeout(() => host.remove(), 250); }, ms);
   }
-  function showWorking(i, n, name) {
+  function showWorking(i, n) {
     const u = card();
-    u.box.classList.remove("done");
+    u.box.classList.remove("done", "warn");
     u.ico.className = "ico spin"; u.ico.textContent = "";
-    u.title.textContent = "در حال کم‌حجم کردن عکس...";
-    u.sub.textContent = (n > 1 ? `عکس ${fa(i + 1)} از ${fa(n)}: ` : "") + name;
+    u.title.textContent = n > 1 ? "در حال کاهش حجم عکس‌ها..." : "در حال کاهش حجم عکس...";
+    u.sub.textContent = `${fa(i + 1)} از ${fa(n)}`;
     u.bar.style.width = Math.round(((i + 0.5) / n) * 100) + "%";
   }
   function showDone(r) {
-    if (!r.changed) { if (host) hideCard(0); return; }
+    if (!r.changed && !r.failed) { if (host) hideCard(0); return; }
     const u = card();
     u.box.classList.add("done");
-    u.ico.className = "ico ok"; u.ico.textContent = "✓";
-    u.title.textContent = r.changed > 1 ? `${fa(r.changed)} عکس کم‌حجم شد` : "عکس کم‌حجم شد";
+    u.box.classList.toggle("warn", r.failed > 0);
+    u.ico.className = "ico ok"; u.ico.textContent = r.failed ? "!" : "✓";
+    u.title.textContent = (r.changed ? `کاهش حجم ${fa(r.changed)} عکس انجام شد` : "کاهش حجم انجام نشد") +
+      (r.failed ? (r.changed ? " و " : "؛ ") + `${fa(r.failed)} مورد ناموفق بود` : "");
+    u.bar.style.width = "100%";
+    if (!r.changed) { u.sub.textContent = "عکس‌های اصلی بدون تغییر ارسال شدند."; hideCard(5000); return; }
     const pct = Math.round((1 - r.after / r.before) * 100);
     u.sub.replaceChildren(`${fa(kb(r.before))} ← ${fa(kb(r.after))} `);
     const b = document.createElement("b");
     b.textContent = `(${fa(pct)}٪ کمتر)`;
     u.sub.append(b);
     u.bar.style.width = "100%";
-    hideCard(3500);
+    hideCard(r.failed ? 6000 : 3500);
   }
 
   // ---- compression: largest size that fits at Q_FLOOR, then highest quality that still fits ----
@@ -160,24 +166,24 @@
   // returns { files: File[], changed, before, after }
   async function shrinkAll(list) {
     const files = [...list];
-    let changed = 0, before = 0, after = 0;
+    let changed = 0, failed = 0, before = 0, after = 0;
     const out = [];
     const todo = files.filter(isCandidate);
     for (const f of files) {
       if (!isCandidate(f)) { out.push(f); continue; }
-      showWorking(todo.indexOf(f), todo.length, f.name);
+      showWorking(todo.indexOf(f), todo.length);
       try {
         const blob = await compress(f);
-        if (!blob) { out.push(f); continue; }
+        if (!blob) { failed++; out.push(f); continue; }   // could not make it any smaller
         const name = f.name.replace(/\.[^.]*$/, "") + ".jpg";
         out.push(new File([blob], name, { type: "image/jpeg", lastModified: f.lastModified }));
         changed++; before += f.size; after += blob.size;
       } catch (e) {
         console.warn("[Saman] compress failed, keeping original:", f.name, e);
-        out.push(f);
+        failed++; out.push(f);
       }
     }
-    return { files: out, changed, before, after };
+    return { files: out, changed, failed, before, after };
   }
 
   const toList = files => { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); return dt; };
