@@ -27,6 +27,17 @@
       "all_frames": true
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/Vazirmatn.woff2"
+      ],
+      "matches": [
+        "https://saman.fceo.ir/*",
+        "https://saman.fceo.ir:9005/*"
+      ]
+    }
+  ],
   "action": {
     "default_title": "__MSG_extTitle__",
     "default_popup": "popup.html",

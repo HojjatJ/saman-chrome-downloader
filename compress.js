@@ -22,20 +22,75 @@
   const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", "٫") + " مگابایت" : Math.round(n / 1024) + " کیلوبایت";
   const fa = s => String(s).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]);
 
-  // ---- small status toast inside the page (top frame only) ----
-  let toastEl, toastTimer;
-  function toast(text, sticky) {
-    if (window.top !== window) return;
-    if (!toastEl) {
-      toastEl = document.createElement("div");
-      toastEl.setAttribute("style", "position:fixed;z-index:2147483647;bottom:16px;left:16px;max-width:360px;" +
-        "padding:8px 14px;border-radius:8px;background:#1f2937;color:#fff;font:13px/1.8 Vazirmatn,Tahoma,sans-serif;" +
-        "direction:rtl;text-align:right;box-shadow:0 4px 16px rgba(0,0,0,.25);pointer-events:none;white-space:pre-line");
+  // ---- status card shown while shrinking (in the frame that holds the input) ----
+  // Lives in a closed shadow root so the page's CSS can't touch it, and the page can't read it.
+  const FONT = "SamanVazir";
+  try {
+    const ff = new FontFace(FONT, `url(${chrome.runtime.getURL("fonts/Vazirmatn.woff2")})`, { weight: "100 900" });
+    document.fonts.add(ff);
+    ff.load().catch(() => {});
+  } catch {}
+
+  let host, ui, hideTimer;
+  function card() {
+    if (!host) {
+      host = document.createElement("saman-compress-status");
+      const root = host.attachShadow({ mode: "closed" });
+      root.innerHTML = `<style>
+        :host { all: initial; }
+        .c { position: fixed; z-index: 2147483647; top: 16px; left: 50%; transform: translate(-50%, -8px);
+          width: min(360px, calc(100vw - 32px)); box-sizing: border-box; padding: 12px 14px; border-radius: 12px;
+          background: #fff; color: #1f2937; border: 1px solid #e5e7eb; box-shadow: 0 10px 30px rgba(15,23,42,.18);
+          font: 13px/1.8 ${FONT}, Vazirmatn, Tahoma, sans-serif; direction: rtl; text-align: right;
+          opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+        .c.show { opacity: 1; transform: translate(-50%, 0); }
+        .row { display: flex; align-items: center; gap: 10px; }
+        .ico { flex: none; width: 22px; height: 22px; }
+        .spin { border: 3px solid #dbeafe; border-top-color: #2563eb; border-radius: 50%; animation: r .8s linear infinite; box-sizing: border-box; }
+        .ok { border-radius: 50%; background: #16a34a; color: #fff; font-size: 14px; line-height: 22px; text-align: center; }
+        .t { font-weight: 700; font-size: 14px; }
+        .s { color: #6b7280; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .s b { color: #15803d; }
+        .bar { height: 4px; margin-top: 8px; border-radius: 2px; background: #e5e7eb; overflow: hidden; }
+        .bar i { display: block; height: 100%; width: 0; background: #2563eb; transition: width .3s; margin-inline-start: 0; }
+        .done .bar i { background: #16a34a; }
+        @keyframes r { to { transform: rotate(360deg); } }
+      </style>
+      <div class="c"><div class="row"><div class="ico"></div><div style="min-width:0;flex:1">
+        <div class="t"></div><div class="s"></div></div></div><div class="bar"><i></i></div></div>`;
+      const q = sel => root.querySelector(sel);
+      ui = { box: q(".c"), ico: q(".ico"), title: q(".t"), sub: q(".s"), bar: q(".bar i") };
     }
-    toastEl.textContent = text;
-    (document.body || document.documentElement).append(toastEl);
-    clearTimeout(toastTimer);
-    if (!sticky) toastTimer = setTimeout(() => toastEl.remove(), 4000);
+    if (!host.isConnected) (document.body || document.documentElement).append(host);
+    clearTimeout(hideTimer);
+    requestAnimationFrame(() => ui.box.classList.add("show"));
+    return ui;
+  }
+  function hideCard(ms) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { ui.box.classList.remove("show"); setTimeout(() => host.remove(), 250); }, ms);
+  }
+  function showWorking(i, n, name) {
+    const u = card();
+    u.box.classList.remove("done");
+    u.ico.className = "ico spin"; u.ico.textContent = "";
+    u.title.textContent = "در حال کم‌حجم کردن عکس...";
+    u.sub.textContent = (n > 1 ? `عکس ${fa(i + 1)} از ${fa(n)}: ` : "") + name;
+    u.bar.style.width = Math.round(((i + 0.5) / n) * 100) + "%";
+  }
+  function showDone(r) {
+    if (!r.changed) { if (host) hideCard(0); return; }
+    const u = card();
+    u.box.classList.add("done");
+    u.ico.className = "ico ok"; u.ico.textContent = "✓";
+    u.title.textContent = r.changed > 1 ? `${fa(r.changed)} عکس کم‌حجم شد` : "عکس کم‌حجم شد";
+    const pct = Math.round((1 - r.after / r.before) * 100);
+    u.sub.replaceChildren(`${fa(kb(r.before))} ← ${fa(kb(r.after))} `);
+    const b = document.createElement("b");
+    b.textContent = `(${fa(pct)}٪ کمتر)`;
+    u.sub.append(b);
+    u.bar.style.width = "100%";
+    hideCard(3500);
   }
 
   // ---- compression: largest size that fits at Q_FLOOR, then highest quality that still fits ----
@@ -105,8 +160,10 @@
     const files = [...list];
     let changed = 0, before = 0, after = 0;
     const out = [];
+    const todo = files.filter(isCandidate);
     for (const f of files) {
       if (!isCandidate(f)) { out.push(f); continue; }
+      showWorking(todo.indexOf(f), todo.length, f.name);
       try {
         const blob = await compress(f);
         if (!blob) { out.push(f); continue; }
@@ -122,8 +179,6 @@
   }
 
   const toList = files => { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); return dt; };
-  const report = r => r.changed &&
-    toast(`${fa(r.changed)} عکس کم‌حجم شد: ${fa(kb(r.before))} ← ${fa(kb(r.after))}`);
   const needsWork = list => cfg.compressEnabled && [...(list || [])].some(isCandidate);
 
   // ---- file inputs: hold back input/change, swap the files, then replay both ----
@@ -136,7 +191,6 @@
     if (!pending.has(el) && !needsWork(el.files)) return;
     e.stopImmediatePropagation();
     if (pending.has(el)) return;   // the other of input/change for the same pick
-    toast("در حال کم‌حجم کردن عکس...", true);
     const job = shrinkAll(el.files).then(r => {
       if (r.changed) el.files = toList(r.files).files;
       replaying = true;
@@ -144,7 +198,7 @@
         el.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
       } finally { replaying = false; }
-      r.changed ? report(r) : toast("عکسی برای کم‌حجم کردن نبود.");
+      showDone(r);
     }).finally(() => pending.delete(el));
     pending.set(el, job);
   }
@@ -162,12 +216,11 @@
       clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
       ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey
     };
-    toast("در حال کم‌حجم کردن عکس...", true);
     shrinkAll(e.dataTransfer.files).then(r => {
       replaying = true;
       try { target.dispatchEvent(new DragEvent("drop", { ...init, dataTransfer: toList(r.files) })); }
       finally { replaying = false; }
-      r.changed ? report(r) : toast("عکسی برای کم‌حجم کردن نبود.");
+      showDone(r);
     });
   }
   window.addEventListener("drop", onDrop, true);
