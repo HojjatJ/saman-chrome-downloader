@@ -54,12 +54,14 @@
         .bar { height: 4px; margin-top: 8px; border-radius: 2px; background: #e5e7eb; overflow: hidden; }
         .bar i { display: block; height: 100%; width: 0; background: #2563eb; transition: width .3s; margin-inline-start: 0; }
         .done .bar i { background: #16a34a; }
+        .by { margin-top: 6px; color: #9ca3af; font-size: 11px; }
         @keyframes r { to { transform: rotate(360deg); } }
       </style>
       <div class="c"><div class="row"><div class="ico"></div><div style="min-width:0;flex:1">
-        <div class="t"></div><div class="s"></div></div></div><div class="bar"><i></i></div></div>`;
+        <div class="t"></div><div class="s"></div></div></div><div class="bar"><i></i></div><div class="by"></div></div>`;
       const q = sel => root.querySelector(sel);
       ui = { box: q(".c"), ico: q(".ico"), title: q(".t"), sub: q(".s"), bar: q(".bar i") };
+      q(".by").textContent = "توسط افزونهٔ «دستیار پروژه سامان»";
     }
     if (!host.isConnected) (document.body || document.documentElement).append(host);
     clearTimeout(hideTimer);
