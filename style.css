@@ -161,3 +161,18 @@ body.popup {
   font-family: inherit;
   font-size: 12px;
 }
+
+.feedback {
+  display: block;
+  margin-top: 12px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.feedback:hover { background: var(--box-bg); }
