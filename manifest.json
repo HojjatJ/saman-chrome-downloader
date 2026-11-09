@@ -1,17 +1,42 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "3.0.1",
+  "version": "4.0.0",
   "description": "__MSG_extDesc__",
   "permissions": [
     "activeTab",
     "scripting",
     "downloads",
-    "downloads.ui"
+    "downloads.ui",
+    "storage"
   ],
   "host_permissions": [
     "https://saman.fceo.ir/*",
     "https://saman.fceo.ir:9005/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://saman.fceo.ir/*",
+        "https://saman.fceo.ir:9005/*"
+      ],
+      "js": [
+        "compress.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/Vazirmatn.woff2"
+      ],
+      "matches": [
+        "https://saman.fceo.ir/*",
+        "https://saman.fceo.ir:9005/*"
+      ]
+    }
   ],
   "action": {
     "default_title": "__MSG_extTitle__",
